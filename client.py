@@ -21,6 +21,7 @@ from gb_chat.io.message_splitter import MessageSplitter
 from gb_chat.io.parsed_msg_handler import ParsedMessageHandler
 from gb_chat.io.send_buffer import SendBuffer
 from gb_chat.io.serializer import Serializer
+from gb_chat.io.settings import EVENTS_WAIT_TIMEOUT
 from gb_chat.log import configure_logging, get_logger
 
 _logger: Any = get_logger()
@@ -60,8 +61,8 @@ def mainloop(
     io_thread_executor: IoThreadExecutor,
     event: threading.Event,
 ) -> None:
-    while not event.is_set() or not disconnector.should_disconnect:
-        r, w, _ = select.select([sock], [sock], [], 0.1)
+    while not event.is_set() and not disconnector.should_disconnect:
+        r, w, _ = select.select([sock], [sock], [], EVENTS_WAIT_TIMEOUT)
         if r:
             read_data(sock, msg_splitter)
         if w:
@@ -163,15 +164,15 @@ def main(address: str, port: int, username: str, password: str, verbose: bool) -
                 elif cmd.startswith("m"):
                     to = input("To: ")
                     msg = input("Message: ")
-                    client.send_msg(to, msg)
+                    io_thread_executor.schedule(lambda: client.send_msg(to, msg))
                 elif cmd.startswith("j"):
                     room = input("Room: ")
-                    client.join_room(room)
+                    io_thread_executor.schedule(lambda: client.join_room(room))
                 elif cmd.startswith("l"):
                     room = input("Room: ")
-                    client.leave_room(room)
+                    io_thread_executor.schedule(lambda: client.leave_room(room))
                 else:
-                    client.quit()
+                    io_thread_executor.schedule(lambda: client.quit())
                     break
         except KeyboardInterrupt:
             pass

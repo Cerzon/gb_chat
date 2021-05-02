@@ -3,7 +3,6 @@ import logging
 import selectors
 import socket
 import threading
-from time import sleep
 from typing import Any, Dict, List
 
 import click
@@ -20,6 +19,7 @@ from gb_chat.io.message_splitter import MessageSplitter
 from gb_chat.io.parsed_msg_handler import ParsedMessageHandler
 from gb_chat.io.send_buffer import SendBuffer
 from gb_chat.io.serializer import Serializer
+from gb_chat.io.settings import EVENTS_WAIT_TIMEOUT
 from gb_chat.log import (bind_client_name_to_logger,
                          bind_remote_address_to_logger, configure_logging,
                          get_logger)
@@ -133,7 +133,7 @@ class SocketHandler:
     def _process_io_events(self) -> None:
         events: List[Any] = []
         try:
-            events = self._sel.select(0.1)
+            events = self._sel.select(EVENTS_WAIT_TIMEOUT)
 
             for key, mask in events:
                 callback = key.data
@@ -192,7 +192,7 @@ def schedule_probes_loop(
     timeout: float,
 ) -> None:
     while not event.is_set():
-        sleep(timeout)
+        event.wait(timeout)
         io_thread_executor.schedule(server.send_probes)
 
 
@@ -245,8 +245,6 @@ def main(address: str, port: int, verbose: bool) -> None:
             finally:
                 event.set()
                 logger.debug("Waiting for threads to stop")
-                if not verbose:
-                    print(f"Waiting for threads to stop")
                 send_probes_thread.join()
 
 
